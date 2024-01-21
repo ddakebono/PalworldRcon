@@ -1,0 +1,3 @@
+[submodule "CoreRcon"]
+	path = CoreRcon
+	url = https://github.com/Challengermode/CoreRcon.git
