@@ -82,7 +82,7 @@ public class RCONClient : INotifyPropertyChanged
     {
         if (!IsConnected) return;
 
-        await _rconClient.ExecuteCommandAsync("Shutdown 30 Server shutting down in 30 seconds!");
+        await _rconClient.ExecuteCommandAsync("Shutdown 30 Server_shutting_down_in_30_seconds!");
     }
 
     public async Task<string> Save()
