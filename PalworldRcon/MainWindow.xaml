@@ -5,7 +5,6 @@
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:mah="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
                  xmlns:local="clr-namespace:PalworldRcon"
-                 xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
                  xmlns:palworldRcon="clr-namespace:PalworldRcon"
                  mc:Ignorable="d"
                  WindowStartupLocation="CenterScreen"
@@ -15,11 +14,7 @@
                  DataContext="{Binding RelativeSource={RelativeSource Self}}">
     <mah:MetroWindow.LeftWindowCommands>
         <mah:WindowCommands>
-            <Button Click="LaunchGitHubSite" ToolTip="Open up the GitHub site">
-                <iconPacks:PackIconModern Width="22"
-                                          Height="22"
-                                          Kind="SocialGithubOctocat" />
-            </Button>
+            <Button Click="LaunchGitHubSite" Content="Github"></Button>
         </mah:WindowCommands>
     </mah:MetroWindow.LeftWindowCommands>
     <mah:MetroWindow.RightWindowCommands>
