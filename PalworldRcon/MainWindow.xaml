@@ -5,6 +5,7 @@
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:mah="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
                  xmlns:local="clr-namespace:PalworldRcon"
+                 xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
                  xmlns:palworldRcon="clr-namespace:PalworldRcon"
                  mc:Ignorable="d"
                  WindowStartupLocation="CenterScreen"
@@ -12,6 +13,15 @@
                  Title="Palworld RCON" Height="600" Width="1000"
                  x:Name="MyWindow"
                  DataContext="{Binding RelativeSource={RelativeSource Self}}">
+    <mah:MetroWindow.LeftWindowCommands>
+        <mah:WindowCommands>
+            <Button Click="LaunchGitHubSite" ToolTip="Open up the GitHub site">
+                <iconPacks:PackIconModern Width="22"
+                                          Height="22"
+                                          Kind="SocialGithubOctocat" />
+            </Button>
+        </mah:WindowCommands>
+    </mah:MetroWindow.LeftWindowCommands>
     <mah:MetroWindow.RightWindowCommands>
         <mah:WindowCommands>
             <Button Click="ConnectButton" x:Name="ConnectBtn" Content="Connect"></Button>
@@ -45,7 +55,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <TextBlock HorizontalAlignment="Center" TextWrapping="Wrap">
-                        Made by DDAkebono<LineBreak/><LineBreak/>This tool was made fairly quickly and may have issues, if you encounter problems please let me know either by DMing me on discord (DDAkebono) or creating and issue on github!
+                        Made by DDAkebono<LineBreak/><LineBreak/>This tool was made fairly quickly and may have issues, if you encounter problems please let me know either by DMing me on discord (DDAkebono) or creating and issue on github!<LineBreak/><LineBreak/>This tool is licenced under the MIT licence.
                     </TextBlock>
                 </Grid>
             </mah:Flyout>

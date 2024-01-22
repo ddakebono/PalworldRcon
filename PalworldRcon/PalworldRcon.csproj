@@ -8,13 +8,14 @@
         <Authors>DDAkebono</Authors>
         <Copyright>DDAkebono 2024</Copyright>
         <Company>BTK-Development</Company>
-        <AssemblyVersion>1.0.0.0</AssemblyVersion>
-        <FileVersion>1.0.0.0</FileVersion>
+        <AssemblyVersion>1.0.1.0</AssemblyVersion>
+        <FileVersion>1.0.1.0</FileVersion>
         <ApplicationIcon>icon.ico</ApplicationIcon>
     </PropertyGroup>
 
     <ItemGroup>
       <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+      <PackageReference Include="MahApps.Metro.IconPacks" Version="4.11.0" />
       <PackageReference Include="RconSharp" Version="2.0.1" />
     </ItemGroup>
 

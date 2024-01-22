@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Net;
@@ -224,6 +225,15 @@ namespace PalworldRcon
             if (player == null) return;
 
             Clipboard.SetText(player.SteamID);
+        }
+
+        private void LaunchGitHubSite(object sender, RoutedEventArgs e)
+        {
+            System.Diagnostics.Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://github.com/ddakebono/PalworldRcon",
+                UseShellExecute = true
+            });
         }
 
         private void WorkerStartup()
