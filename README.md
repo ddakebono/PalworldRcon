@@ -45,8 +45,8 @@ Feel free to submit pull requests, I'll review and merge as needed.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Licence
-This project is distributed under the MIT Licence, see `LICENCE` for more information.
+## License
+This project is distributed under the MIT License, see `LICENSE` for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
