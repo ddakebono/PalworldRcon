@@ -58,5 +58,5 @@ If you encounter issues feel free to create an issue on this repo, I'll address 
 ## Acknowledgments
 
 * [Mahapps.Metro](https://mahapps.com/) for the nice Metro WPF library
-* [RconSharp](https://github.com/stefanodriussi/rconsharp) for a decent rcon library that didn't violently explode on Palworld
+* [Yggdrasil](https://github.com/exectails/Yggdrasil) for the logging and less fiddly TCP 
 * [Pocketpair](https://www.pocketpair.jp/) for the silly game that's gone nutty
