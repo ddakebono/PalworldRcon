@@ -6,9 +6,9 @@ namespace PalworldRcon
 {
     public class Settings
     {
-        public string ServerAddresss;
-        public string RCONPassword;
-        public ushort ServerPort;
+        public string ServerAddress { get; set; }
+        public string RCONPassword { get; set; }
+        public ushort ServerPort { get; set; }
 
         private RegistryKey _rconSubkey;
 
@@ -24,7 +24,7 @@ namespace PalworldRcon
             if (_rconSubkey == null) return;
 
             _rconSubkey.SetValue("RCONPassword", RCONPassword);
-            _rconSubkey.SetValue("ServerAddress", ServerAddresss);
+            _rconSubkey.SetValue("ServerAddress", ServerAddress);
             _rconSubkey.SetValue("ServerPort", ServerPort);
         }
 
@@ -33,7 +33,7 @@ namespace PalworldRcon
             if (_rconSubkey == null) return;
 
             RCONPassword = Convert.ToString(_rconSubkey.GetValue("RCONPassword", ""));
-            ServerAddresss = Convert.ToString(_rconSubkey.GetValue("ServerAddress", ""));
+            ServerAddress = Convert.ToString(_rconSubkey.GetValue("ServerAddress", ""));
             ServerPort = Convert.ToUInt16(_rconSubkey.GetValue("ServerPort", 25575));
         }
     }

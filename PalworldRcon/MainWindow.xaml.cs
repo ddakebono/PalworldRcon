@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -8,8 +9,13 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Threading;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
+using PalworldRcon.Logging;
+using PalworldRcon.Logging.Targets;
+using PalworldRcon.Network.TCP;
 
 namespace PalworldRcon
 {
@@ -29,6 +35,8 @@ namespace PalworldRcon
         {
             Instance = this;
 
+            Log.Info("Startup");
+
             _settings = new Settings();
             _settings.LoadSettings();
 
@@ -36,27 +44,34 @@ namespace PalworldRcon
 
             InitializeComponent();
 
+            ConsoleBlock.DataContext = ConsoleTarget.Instance;
+
+            Log.Info("Welcome to Bono's Palworld Rcon Tool!");
+            Log.Warning("Using this console allows you to send any commands to the server, please ensure you know what you're about to send!");
+
             ServerBlock.DataContext = _client;
             ConnectBtn.DataContext = _client;
 
-            _client.OnConnected += WorkerStartup;
-            _client.OnDisconnect += OnDisconnect;
+            _client.Disconnected += OnDisconnect;
+            _client.OnAuth += OnAuth;
 
             RCONPassword.Password = _settings.RCONPassword;
-            ServerAddress.Text = _settings.ServerAddresss;
+            ServerAddress.Text = _settings.ServerAddress;
             ServerPort.Text = _settings.ServerPort.ToString();
         }
 
-        private void OnDisconnect()
+        private void OnDisconnect(TcpClient tcpClient, ConnectionCloseType connectionCloseType)
         {
+            Log.Info("OnDisconnect called");
+
             Dispatcher.Invoke(() =>
             {
                 ConnectBtn.Content = "Connect";
                 Players.Clear();
             });
 
-            _worker.CancelAsync();
-
+            if(_worker != null)
+                _worker.CancelAsync();
         }
 
         private void SettingsClick(object sender, RoutedEventArgs e)
@@ -67,6 +82,11 @@ namespace PalworldRcon
         private void AboutClick(object sender, RoutedEventArgs e)
         {
             AboutFlyout.IsOpen = !AboutFlyout.IsOpen;
+        }
+
+        private void ConsoleClick(object sender, RoutedEventArgs e)
+        {
+            ConsoleFlyout.IsOpen = !ConsoleFlyout.IsOpen;
         }
 
         private async void SaveSettings(object sender, RoutedEventArgs e)
@@ -83,7 +103,7 @@ namespace PalworldRcon
                 return;
             }
 
-            _settings.ServerAddresss = address.ToString();
+            _settings.ServerAddress = address.ToString();
             _settings.ServerPort = port;
             _settings.RCONPassword = RCONPassword.Password;
             _settings.SaveSettings();
@@ -93,28 +113,67 @@ namespace PalworldRcon
         {
             SaveSettings(sender, e);
 
-            var connRes = await _client.ConnectToRCON();
+            if (!_client.ConnectToRCON())
+            {
+                await this.ShowMessageAsync("Oops!", "It seems you have invalid settings, please check your server connection settings and ensure you are using a valid IP and Port!");
+            }
 
-            ConnectBtn.Content = connRes ? "Connected!" : "Connect";
+            _client.OnAuth += OnAuthConnTest;
+        }
+
+        private async void OnAuthConnTest(bool authSuccess)
+        {
+            _client.OnAuth -= OnAuthConnTest;
 
             var result = await _client.GetInfo();
 
-            if (result == null)
+            await Dispatcher.Invoke(async () =>
             {
-                await this.ShowMessageAsync("Connection Test", "Connection test failed! Did not receive info response!");
-                return;
-            }
+                ConnectBtn.Content = authSuccess ? "Disconnect" : "Connect";
 
-            await this.ShowMessageAsync("Connection Test", $"Connection test success! Server responsed with: \"{result}\"");
+                if (result == null)
+                {
+                    await this.ShowMessageAsync("Connection Test", "Connection test failed! Did not receive info response!");
+                    return;
+                }
+
+                await this.ShowMessageAsync("Connection Test", $"Connection test success! Server responsed with: \"{result}\"");
+            });
+        }
+
+        private void OnAuth(bool state)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                ConnectBtn.Content = state ? "Disconnect" : "Connect";
+
+                if (!state)
+                {
+                    this.ShowMessageAsync("Authentication Failed!", "Please check your rcon password and make sure it makes the one set in your PalWorldSettings.ini!");
+                }
+            });
+
+            if (!state) return;
+
+            //Startup player update thread?
+            _worker = new BackgroundWorker();
+            _worker.DoWork += PlayerUpdateWorker;
+            _worker.WorkerSupportsCancellation = true;
+            _worker.RunWorkerAsync();
         }
 
         private async void ConnectButton(object sender, RoutedEventArgs e)
         {
-            if (_client.IsConnected) return;
+            if (_client.Status == ClientStatus.Connected)
+            {
+                _client.Disconnect();
+                return;
+            }
 
-            var result = await _client.ConnectToRCON();
-
-            ConnectBtn.Content = result ? "Connected!" : "Connect";
+            if (!_client.ConnectToRCON())
+            {
+                await this.ShowMessageAsync("Oops!", "It seems you have invalid settings, please check your server connection settings and ensure you are using a valid IP and Port!");
+            }
         }
 
         private void SendNotice(object sender, RoutedEventArgs e)
@@ -158,8 +217,8 @@ namespace PalworldRcon
             if (select != MessageDialogResult.Affirmative) return;
 
             var resp = await _client.KickPlayer(player.SteamID);
-            if (!string.IsNullOrWhiteSpace(resp))
-                await this.ShowMessageAsync("Kick", resp);
+            if (!string.IsNullOrWhiteSpace(resp.Body))
+                await this.ShowMessageAsync("Kick", resp.Body);
         }
 
         private async void Ban(object sender, RoutedEventArgs e)
@@ -178,8 +237,8 @@ namespace PalworldRcon
             if (select != MessageDialogResult.Affirmative) return;
 
             var resp = await _client.BanPlayer(player.SteamID);
-            if (!string.IsNullOrWhiteSpace(resp))
-                await this.ShowMessageAsync("Ban", resp);
+            if (!string.IsNullOrWhiteSpace(resp.Body))
+                await this.ShowMessageAsync("Ban", resp.Body);
         }
 
         private async void CopyName(object sender, RoutedEventArgs e)
@@ -192,7 +251,7 @@ namespace PalworldRcon
 
             var player = PlayerList.SelectedItem as Player;
 
-            if (player == null) return;
+            if (player == null || string.IsNullOrWhiteSpace(player.PlayerName)) return;
 
             Clipboard.SetText(player.PlayerName);
         }
@@ -207,7 +266,7 @@ namespace PalworldRcon
 
             var player = PlayerList.SelectedItem as Player;
 
-            if (player == null) return;
+            if (player == null || string.IsNullOrWhiteSpace(player.CharacterID)) return;
 
             Clipboard.SetText(player.CharacterID);
         }
@@ -222,27 +281,18 @@ namespace PalworldRcon
 
             var player = PlayerList.SelectedItem as Player;
 
-            if (player == null) return;
+            if (player == null || string.IsNullOrWhiteSpace(player.SteamID)) return;
 
             Clipboard.SetText(player.SteamID);
         }
 
         private void LaunchGitHubSite(object sender, RoutedEventArgs e)
         {
-            System.Diagnostics.Process.Start(new ProcessStartInfo
+            Process.Start(new ProcessStartInfo
             {
                 FileName = "https://github.com/ddakebono/PalworldRcon",
                 UseShellExecute = true
             });
-        }
-
-        private void WorkerStartup()
-        {
-            //Startup player update thread?
-            _worker = new BackgroundWorker();
-            _worker.DoWork += PlayerUpdateWorker;
-            _worker.WorkerSupportsCancellation = true;
-            _worker.RunWorkerAsync();
         }
 
         private async void PlayerUpdateWorker(object sender, DoWorkEventArgs e)
@@ -268,6 +318,24 @@ namespace PalworldRcon
                 }
                 Thread.Sleep(7000);
             }
+        }
+
+        private async void ConsoleInputKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if(e.Key == System.Windows.Input.Key.Return)
+            {
+                //Send this as a raw rcon command
+                var command = ConsoleInput.Text;
+                ConsoleInput.Text = "";
+                var resp = await _client.SendRawCommand(command);
+                Log.Info(resp.Body);
+            }
+        }
+
+        private void ConsoleBlockScrollUpdate(object sender, ScrollChangedEventArgs e)
+        {
+            if(e.OriginalSource is ScrollViewer sc)
+                sc.ScrollToBottom();
         }
     }
 }

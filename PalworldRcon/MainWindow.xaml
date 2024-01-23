@@ -21,11 +21,28 @@
         <mah:WindowCommands>
             <Button Click="ConnectButton" x:Name="ConnectBtn" Content="Connect"></Button>
             <Button Click="SettingsClick" Content="Settings"></Button>
+            <Button Click="ConsoleClick" Content="Console"></Button>
             <Button Click="AboutClick" Content="About"></Button>
         </mah:WindowCommands>
     </mah:MetroWindow.RightWindowCommands>
     <mah:MetroWindow.Flyouts>
         <mah:FlyoutsControl>
+            <mah:Flyout x:Name="ConsoleFlyout" Header="Console" Position="Right" Width="700">
+                <Grid Margin="10,10,10,10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ListBox SelectionMode="Single" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.ScrollChanged="ConsoleBlockScrollUpdate" Name="ConsoleBlock" ItemsSource="{Binding Path=OutputText}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock TextWrapping="Wrap" Text="{Binding}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBox Grid.Row="1" x:Name="ConsoleInput" KeyDown="ConsoleInputKeyDown" />
+                </Grid>
+            </mah:Flyout>
             <mah:Flyout x:Name="SettingsFlyout" Header="Settings" Position="Right" Width="300">
                 <Grid Margin="10,10,10,10">
                     <Grid.RowDefinitions>
