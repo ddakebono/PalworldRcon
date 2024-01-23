@@ -3,7 +3,7 @@
 <h3 align="center">Palworld Rcon</h3>
 
   <p align="center">
-    A simple WPF/.net 7 Rcon tool for Palworld Dedicated Servers.
+    A simple WPF/.net 8 Rcon tool for Palworld Dedicated Servers.
     <br />
     <a href="https://github.com/ddakebono/PalworldRcon/issues">Report Bug</a>
     ·
@@ -25,7 +25,7 @@
 </details>
 
 # About the Project
-Simple WPF/.net 7 Rcon tool for Palworld Dedicated Servers, this allows you easily use all the RCON usable commands that the Palworld Dedicated Server exposes.
+Simple WPF/.net 8 Rcon tool for Palworld Dedicated Servers, this allows you easily use all the RCON usable commands that the Palworld Dedicated Server exposes.
 
 This tool has been put together relatively quickly and likely has some funky issues, it may randomly lock up and require a restart, I'll be looking into it eventually.
 
@@ -37,7 +37,7 @@ Once that's done you can use test connection or save then hit the connect button
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Contribution
-To contribute to this project you'll need to have a functional .Net 7 development environment, to do this you can simply install Visual Studio 2022 and the .Net 7 SDK.
+To contribute to this project you'll need to have a functional .Net 8 development environment, to do this you can simply install Visual Studio 2022 and the .Net 8 SDK.
 
 Once that's done you can simply clone this repo and begin fiddling, all dependencies will be brought in by Nuget.
 
