@@ -16,7 +16,7 @@ namespace PalworldRcon;
 
 public class RCONClient : TcpClient, INotifyPropertyChanged
 {
-    public const int TimeoutSeconds = 10;
+    public const int TimeoutSeconds = 20;
 
     public Action<bool> OnAuth;
 
@@ -109,11 +109,13 @@ public class RCONClient : TcpClient, INotifyPropertyChanged
         await SendAsync($"Broadcast {notice}");
     }
 
-    public async void DoQuit()
+    public async void DoQuit(string shutdownMessage)
     {
         if (Status != ClientStatus.Connected) return;
 
-        await SendAsync("Shutdown 30 Server_shutting_down_in_30_seconds!");
+        shutdownMessage = shutdownMessage.Replace(" ", "_");
+
+        await SendAsync($"Shutdown 30 {shutdownMessage}");
     }
 
     public async Task<string> Save()

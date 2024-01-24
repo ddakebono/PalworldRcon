@@ -8,8 +8,8 @@
         <Authors>DDAkebono</Authors>
         <Copyright>DDAkebono 2024</Copyright>
         <Company>BTK-Development</Company>
-        <AssemblyVersion>1.1.0.0</AssemblyVersion>
-        <FileVersion>1.1.0.0</FileVersion>
+        <AssemblyVersion>1.1.1.0</AssemblyVersion>
+        <FileVersion>1.1.1.0</FileVersion>
         <ApplicationIcon>icon.ico</ApplicationIcon>
         <LangVersion>default</LangVersion>
     </PropertyGroup>

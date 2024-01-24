@@ -188,10 +188,10 @@ namespace PalworldRcon
 
         private async void KillServer(object sender, RoutedEventArgs e)
         {
-            var select = await this.ShowMessageAsync("Are you sure?", $"Are you sure you wish to shutdown the Palworld server?", MessageDialogStyle.AffirmativeAndNegative);
-            if (select != MessageDialogResult.Affirmative) return;
+            var shutdownText = await this.ShowInputAsync("Are you sure?", $"Are you sure you wish to shutdown the Palworld server?\n\nEnter a shutdown notice:", new MetroDialogSettings {AffirmativeButtonText = "Shutdown", NegativeButtonText = "Cancel", DefaultText = "Server shutting down in 30 seconds!"});
+            if (shutdownText == null) return;
 
-            _client.DoQuit();
+            _client.DoQuit(shutdownText);
         }
 
         private async void Save(object sender, RoutedEventArgs e)

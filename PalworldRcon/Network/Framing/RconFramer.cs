@@ -68,7 +68,11 @@ public class RconFramer : IMessageFramer
 
                 if (_bytesReceived == _lengthBuffer.Length)
                 {
-                    var messageSize = BitConverter.ToInt32(data, 0);
+                    var messageSize = 0;
+                    messageSize |= _lengthBuffer[0] << (8 * 0);
+                    messageSize |= _lengthBuffer[1] << (8 * 1);
+                    messageSize |= _lengthBuffer[2] << (8 * 2);
+                    messageSize |= _lengthBuffer[3] << (8 * 3);
 
                     if (messageSize < 0 || messageSize > this.MaxMessageSize)
                         throw new InvalidMessageSizeException("Invalid size (" + messageSize + ").");
