@@ -81,9 +81,10 @@
         <StackPanel>
             <TextBlock HorizontalAlignment="Center" x:Name="ServerBlock" FontSize="18">
                 <TextBlock.Text>
-                    <MultiBinding StringFormat="Server Name: {0} - Version: {1}">
+                    <MultiBinding StringFormat="Server Name: {0} - Version: {1} - Players: {2}">
                         <Binding Path="ServerName"></Binding>
                         <Binding Path="ServerVersion"></Binding>
+                        <Binding Path="PlayerCount"></Binding>
                     </MultiBinding>
                 </TextBlock.Text>
             </TextBlock>

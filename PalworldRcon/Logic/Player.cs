@@ -15,6 +15,6 @@ public class Player
 
     public override string ToString()
     {
-        return $"Player Name: {PlayerName} | CharacterID: {CharacterID} | SteamID: {SteamID}";
+        return $"Player Name: {PlayerName} | SteamID: {SteamID}";
     }
 }

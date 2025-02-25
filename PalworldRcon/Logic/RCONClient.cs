@@ -40,11 +40,22 @@ public class RCONClient : TcpClient, INotifyPropertyChanged
         }
     }
 
+    public int PlayerCount
+    {
+        get => _playerCount;
+        private set
+        {
+            _playerCount = value;
+            OnPropertyChanged();
+        }
+    }
+
     private string _serverVersion = "v0.0.0.0";
     private string _serverName = "PalWorld";
+    private int _playerCount = 0;
     private Settings _settings;
     private Regex _infoRegex = new Regex("\\[(?'version'.*)\\] (?'servername'.*)", RegexOptions.Compiled);
-    private Regex _playerRegex = new Regex("(?'playername'.*),(?'charid'\\d*),(?'steamid'\\d*)", RegexOptions.Compiled);
+    private Regex _playerRegex = new Regex("(?'playername'.*),(?'charid'(?!playeruid).*),(?'steamid'.*)", RegexOptions.Compiled);
     private RconFramer _framer = new();
     private TaskCompletionSource<RconPacket> _authTask;
     private Queue<(TaskCompletionSource<RconPacket>, PacketType)> _rconCommandList = new();
@@ -104,16 +115,12 @@ public class RCONClient : TcpClient, INotifyPropertyChanged
     {
         if(string.IsNullOrWhiteSpace(notice) || Status != ClientStatus.Connected) return;
 
-        notice = notice.Replace(" ", "_");
-
         await SendAsync($"Broadcast {notice}");
     }
 
     public async void DoQuit(string shutdownMessage)
     {
         if (Status != ClientStatus.Connected) return;
-
-        shutdownMessage = shutdownMessage.Replace(" ", "_");
 
         await SendAsync($"Shutdown 30 {shutdownMessage}");
     }
@@ -141,6 +148,8 @@ public class RCONClient : TcpClient, INotifyPropertyChanged
                 Match match = matches[i];
                 players[i] = new Player(match.Groups["playername"].Value, match.Groups["charid"].Value, match.Groups["steamid"].Value);
             }
+
+            PlayerCount = players.Length;
 
             return players;
         }
@@ -249,6 +258,7 @@ public class RCONClient : TcpClient, INotifyPropertyChanged
                 break;
             default:
                 //We got something unexpected?! Log to console.
+                Log.Error(packet);
                 break;
         }
     }
