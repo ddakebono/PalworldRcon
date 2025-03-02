@@ -58,5 +58,7 @@ If you encounter issues feel free to create an issue on this repo, I'll address 
 ## Acknowledgments
 
 * [Mahapps.Metro](https://mahapps.com/) for the nice Metro WPF library
-* [Yggdrasil](https://github.com/exectails/Yggdrasil) for the logging and less fiddly TCP 
+* [Yggdrasil](https://github.com/exectails/Yggdrasil) for the logging implementation
+* [CoreRCON](https://github.com/Challengermode/CoreRcon) functional RCON client that works with Palworld's jank
+* [ToastNotifications](https://github.com/starkna/ToastNotifications) simple WPF toast notification library
 * [Pocketpair](https://www.pocketpair.jp/) for the silly game that's gone nutty
