@@ -82,6 +82,7 @@ namespace PalworldRcon
             ServerAddress.Text = _settings.ServerAddress;
             ServerPort.Text = _settings.ServerPort.ToString();
             DebugMode.IsChecked = _settings.DebugMode;
+            ShowJoinLeaves.IsChecked = _settings.ShowJoinLeaves;
         }
 
         private void OnDisconnect()
@@ -129,6 +130,8 @@ namespace PalworldRcon
             _settings.RCONPassword = RCONPassword.Password;
             if(DebugMode.IsChecked.HasValue)
                 _settings.DebugMode = DebugMode.IsChecked.Value;
+            if (ShowJoinLeaves.IsChecked.HasValue)
+                _settings.ShowJoinLeaves = ShowJoinLeaves.IsChecked.Value;
             _settings.SaveSettings();
 
             Notifier.ShowSuccess("Settings Saved!");
@@ -332,13 +335,12 @@ namespace PalworldRcon
 
                 if (list == null) continue;
 
-
-
                 foreach (var player in Players.Where(x => list.Players.All(np => np.SteamID != x.SteamID)).ToList())
                 {
                     Dispatcher.Invoke(() => Players.Remove(player));
 
-                    await _client.SendNotice($"{player.PlayerName} has disconnected!");
+                    if(_settings.ShowJoinLeaves)
+                        await _client.SendNotice($"{player.PlayerName} has disconnected!");
                     Dispatcher.Invoke(() => Notifier.ShowInformation($"Player {player.PlayerName} has disconnected!"));
                 }
 
@@ -347,7 +349,8 @@ namespace PalworldRcon
                     if (Players.Any(p => p.SteamID == player.SteamID)) continue;
                     Dispatcher.Invoke(() => Players.Add(player));
 
-                    await _client.SendNotice($"{player.PlayerName} has connected!");
+                    if(_settings.ShowJoinLeaves)
+                        await _client.SendNotice($"{player.PlayerName} has connected!");
                     Notifier.ShowInformation($"Player {player.PlayerName} has connected!");
                 }
             }

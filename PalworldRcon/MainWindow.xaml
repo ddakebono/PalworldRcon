@@ -57,6 +57,8 @@
                         <TextBox x:Name="ServerPort" mah:TextBoxHelper.Watermark="Port" />
                         <Label Target="{Binding ElementName=RCONPassword}" Content="RCON Password"/>
                         <PasswordBox x:Name="RCONPassword" mah:TextBoxHelper.Watermark="Password" PasswordChar="*"/>
+                        <Label Target="{Binding ElementName=DebugMode}">Broadcast Joins/Leaves</Label>
+                        <CheckBox x:Name="ShowJoinLeaves"></CheckBox>
                         <Label Target="{Binding ElementName=DebugMode}">Debug - Print Packets To Log</Label>
                         <CheckBox x:Name="DebugMode"></CheckBox>
                         <Button Content="Test Connection" Click="TryConnection" Margin="0,10,0,0" Style="{DynamicResource MahApps.Styles.Button.Square}"/>

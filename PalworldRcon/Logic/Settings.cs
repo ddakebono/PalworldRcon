@@ -9,6 +9,7 @@ namespace PalworldRcon
         public string ServerAddress { get; set; }
         public string RCONPassword { get; set; }
         public ushort ServerPort { get; set; }
+        public bool ShowJoinLeaves { get; set; }
         public bool DebugMode { get; set; }
 
         private readonly RegistryKey _rconSubkey;
@@ -27,6 +28,7 @@ namespace PalworldRcon
             _rconSubkey.SetValue("RCONPassword", RCONPassword);
             _rconSubkey.SetValue("ServerAddress", ServerAddress);
             _rconSubkey.SetValue("ServerPort", ServerPort);
+            _rconSubkey.SetValue("ShowJoinLeaves", ShowJoinLeaves);
             _rconSubkey.SetValue("DebugMode", DebugMode);
         }
 
@@ -37,6 +39,7 @@ namespace PalworldRcon
             RCONPassword = Convert.ToString(_rconSubkey.GetValue("RCONPassword", ""));
             ServerAddress = Convert.ToString(_rconSubkey.GetValue("ServerAddress", ""));
             ServerPort = Convert.ToUInt16(_rconSubkey.GetValue("ServerPort", 25575));
+            ShowJoinLeaves = Convert.ToBoolean(_rconSubkey.GetValue("ShowJoinLeaves", true));
             DebugMode = Convert.ToBoolean(_rconSubkey.GetValue("DebugMode", false));
         }
     }
