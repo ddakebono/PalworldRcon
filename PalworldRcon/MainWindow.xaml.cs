@@ -6,8 +6,10 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -15,7 +17,11 @@ using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
 using PalworldRcon.Logging;
 using PalworldRcon.Logging.Targets;
-using PalworldRcon.Network.TCP;
+using PalworldRcon.Logic;
+using ToastNotifications;
+using ToastNotifications.Lifetime;
+using ToastNotifications.Messages;
+using ToastNotifications.Position;
 
 namespace PalworldRcon
 {
@@ -26,16 +32,33 @@ namespace PalworldRcon
     {
         public static MainWindow Instance;
         public ObservableCollection<Player> Players { get; } = new();
+        public Notifier Notifier { get; private set; }
 
         private Settings _settings;
         private RCONClient _client;
-        private BackgroundWorker _worker;
+        private Task _worker;
+        private bool _stopping;
 
         public MainWindow()
         {
             Instance = this;
 
             Log.Info("Startup");
+
+            Notifier = new Notifier(cfg =>
+            {
+                cfg.PositionProvider = new WindowPositionProvider(
+                    parentWindow: Application.Current.MainWindow,
+                    corner: Corner.BottomLeft,
+                    offsetX: 10,
+                    offsetY: 10);
+
+                cfg.LifetimeSupervisor = new TimeAndCountBasedLifetimeSupervisor(
+                    notificationLifetime: TimeSpan.FromSeconds(3),
+                    maximumNotificationCount: MaximumNotificationCount.FromCount(5));
+
+                cfg.Dispatcher = Application.Current.Dispatcher;
+            });
 
             _settings = new Settings();
             _settings.LoadSettings();
@@ -58,9 +81,10 @@ namespace PalworldRcon
             RCONPassword.Password = _settings.RCONPassword;
             ServerAddress.Text = _settings.ServerAddress;
             ServerPort.Text = _settings.ServerPort.ToString();
+            DebugMode.IsChecked = _settings.DebugMode;
         }
 
-        private void OnDisconnect(TcpClient tcpClient, ConnectionCloseType connectionCloseType)
+        private void OnDisconnect()
         {
             Log.Info("OnDisconnect called");
 
@@ -69,9 +93,6 @@ namespace PalworldRcon
                 ConnectBtn.Content = "Connect";
                 Players.Clear();
             });
-
-            if(_worker != null)
-                _worker.CancelAsync();
         }
 
         private void SettingsClick(object sender, RoutedEventArgs e)
@@ -106,39 +127,29 @@ namespace PalworldRcon
             _settings.ServerAddress = address.ToString();
             _settings.ServerPort = port;
             _settings.RCONPassword = RCONPassword.Password;
+            if(DebugMode.IsChecked.HasValue)
+                _settings.DebugMode = DebugMode.IsChecked.Value;
             _settings.SaveSettings();
+
+            Notifier.ShowSuccess("Settings Saved!");
         }
 
         private async void TryConnection(object sender, RoutedEventArgs e)
         {
             SaveSettings(sender, e);
 
-            if (!_client.ConnectToRCON())
+            var success = await _client.ConnectToRCON(true);
+
+            if (success)
             {
-                await this.ShowMessageAsync("Oops!", "It seems you have invalid settings, please check your server connection settings and ensure you are using a valid IP and Port!");
+                await this.ShowMessageAsync("Connection Test", $"Successfully connected to Palworld server!");
+            }
+            else
+            {
+                await this.ShowMessageAsync("Connection Test", "Connection test failed! Did not receive info response!");
             }
 
-            _client.OnAuth += OnAuthConnTest;
-        }
-
-        private async void OnAuthConnTest(bool authSuccess)
-        {
-            _client.OnAuth -= OnAuthConnTest;
-
-            var result = await _client.GetInfo();
-
-            await Dispatcher.Invoke(async () =>
-            {
-                ConnectBtn.Content = authSuccess ? "Disconnect" : "Connect";
-
-                if (result == null)
-                {
-                    await this.ShowMessageAsync("Connection Test", "Connection test failed! Did not receive info response!");
-                    return;
-                }
-
-                await this.ShowMessageAsync("Connection Test", $"Connection test success! Server responsed with: \"{result}\"");
-            });
+            ConnectBtn.Content = "Connect";
         }
 
         private void OnAuth(bool state)
@@ -153,36 +164,36 @@ namespace PalworldRcon
                 }
             });
 
-            if (!state) return;
-
-            //Startup player update thread?
-            _worker = new BackgroundWorker();
-            _worker.DoWork += PlayerUpdateWorker;
-            _worker.WorkerSupportsCancellation = true;
-            _worker.RunWorkerAsync();
+            //Setup player update task
+            _worker = Task.Run(PlayerUpdateWorker);
         }
 
         private async void ConnectButton(object sender, RoutedEventArgs e)
         {
-            if (_client.Status == ClientStatus.Connected)
+            if (_client.IsConnectedAndAuthed.HasValue && _client.IsConnectedAndAuthed.Value)
             {
+                //Disconnect!
                 _client.Disconnect();
                 return;
             }
 
-            if (!_client.ConnectToRCON())
+            if (!await _client.ConnectToRCON())
             {
                 await this.ShowMessageAsync("Oops!", "It seems you have invalid settings, please check your server connection settings and ensure you are using a valid IP and Port!");
+                return;
             }
+
+            Notifier.ShowSuccess("Connected to Palworld server!");
         }
 
         private void SendNotice(object sender, RoutedEventArgs e)
         {
-            this.ShowInputAsync("Notice", "Enter a notice").ContinueWith(task =>
+            this.ShowInputAsync("Notice", "Enter a notice").ContinueWith(async task =>
             {
                 //Entered and submitted
                 if(!task.IsCompletedSuccessfully) return;
-                _client.SendNotice(task.Result);
+                var resp = await _client.SendNotice(task.Result);
+                Notifier.ShowSuccess(resp);
             });
         }
 
@@ -191,14 +202,16 @@ namespace PalworldRcon
             var shutdownText = await this.ShowInputAsync("Are you sure?", $"Are you sure you wish to shutdown the Palworld server?\n\nEnter a shutdown notice:", new MetroDialogSettings {AffirmativeButtonText = "Shutdown", NegativeButtonText = "Cancel", DefaultText = "Server shutting down in 30 seconds!"});
             if (shutdownText == null) return;
 
-            _client.DoQuit(shutdownText);
+            var resp = await _client.DoQuit(shutdownText);
+
+            Notifier.ShowInformation(resp);
         }
 
         private async void Save(object sender, RoutedEventArgs e)
         {
             var resp = await _client.Save();
 
-            await this.ShowMessageAsync("Save", resp);
+            Notifier.ShowSuccess(resp);
         }
 
         private async void Kick(object sender, RoutedEventArgs e)
@@ -217,8 +230,8 @@ namespace PalworldRcon
             if (select != MessageDialogResult.Affirmative) return;
 
             var resp = await _client.KickPlayer(player.SteamID);
-            if (!string.IsNullOrWhiteSpace(resp.Body))
-                await this.ShowMessageAsync("Kick", resp.Body);
+            if (!string.IsNullOrWhiteSpace(resp))
+                Notifier.ShowSuccess(resp);
         }
 
         private async void Ban(object sender, RoutedEventArgs e)
@@ -237,8 +250,8 @@ namespace PalworldRcon
             if (select != MessageDialogResult.Affirmative) return;
 
             var resp = await _client.BanPlayer(player.SteamID);
-            if (!string.IsNullOrWhiteSpace(resp.Body))
-                await this.ShowMessageAsync("Ban", resp.Body);
+            if (!string.IsNullOrWhiteSpace(resp))
+                Notifier.ShowSuccess(resp);
         }
 
         private async void CopyName(object sender, RoutedEventArgs e)
@@ -254,6 +267,8 @@ namespace PalworldRcon
             if (player == null || string.IsNullOrWhiteSpace(player.PlayerName)) return;
 
             Clipboard.SetText(player.PlayerName);
+
+            Notifier.ShowSuccess("Copied name to clipboard!");
         }
 
         private async void CopyCharacter(object sender, RoutedEventArgs e)
@@ -269,6 +284,8 @@ namespace PalworldRcon
             if (player == null || string.IsNullOrWhiteSpace(player.CharacterID)) return;
 
             Clipboard.SetText(player.CharacterID);
+
+            Notifier.ShowInformation("Character ID copied!");
         }
 
         private async void CopySteam(object sender, RoutedEventArgs e)
@@ -284,6 +301,8 @@ namespace PalworldRcon
             if (player == null || string.IsNullOrWhiteSpace(player.SteamID)) return;
 
             Clipboard.SetText(player.SteamID);
+
+            Notifier.ShowInformation("Steam ID copied!");
         }
 
         private void LaunchGitHubSite(object sender, RoutedEventArgs e)
@@ -295,28 +314,42 @@ namespace PalworldRcon
             });
         }
 
-        private async void PlayerUpdateWorker(object sender, DoWorkEventArgs e)
+        private async Task PlayerUpdateWorker()
         {
-            while (!_worker.CancellationPending)
-            {
-                //Let's only update players every 10 seconds
-                Thread.Sleep(3000);
-                var list = await _client.GetPlayers();
-                if (list != null)
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        foreach (var player in Players.Where(x => !list.Contains(x)).ToArray())
-                            Players.Remove(player);
+            bool firstPoll = false;
 
-                        foreach (var player in list)
-                        {
-                            if(Players.Contains(player)) continue;
-                            Players.Add(player);
-                        }
-                    });
+            while (!_stopping)
+            {
+                if(firstPoll)
+                    await Task.Delay(10000);
+
+                firstPoll = true;
+
+                if (!_client.IsConnectedAndAuthed.HasValue || !_client.IsConnectedAndAuthed.Value) continue;
+
+                //Let's only update players every 10 seconds
+                var list = _client.GetPlayers().GetAwaiter().GetResult();
+
+                if (list == null) continue;
+
+
+
+                foreach (var player in Players.Where(x => list.Players.All(np => np.SteamID != x.SteamID)).ToList())
+                {
+                    Dispatcher.Invoke(() => Players.Remove(player));
+
+                    await _client.SendNotice($"{player.PlayerName} has disconnected!");
+                    Dispatcher.Invoke(() => Notifier.ShowInformation($"Player {player.PlayerName} has disconnected!"));
                 }
-                Thread.Sleep(7000);
+
+                foreach (var player in list.Players)
+                {
+                    if (Players.Any(p => p.SteamID == player.SteamID)) continue;
+                    Dispatcher.Invoke(() => Players.Add(player));
+
+                    await _client.SendNotice($"{player.PlayerName} has connected!");
+                    Notifier.ShowInformation($"Player {player.PlayerName} has connected!");
+                }
             }
         }
 
@@ -328,7 +361,7 @@ namespace PalworldRcon
                 var command = ConsoleInput.Text;
                 ConsoleInput.Text = "";
                 var resp = await _client.SendRawCommand(command);
-                Log.Info(resp.Body);
+                Log.Info(resp);
             }
         }
 
@@ -336,6 +369,11 @@ namespace PalworldRcon
         {
             if(e.OriginalSource is ScrollViewer sc)
                 sc.ScrollToBottom();
+        }
+
+        private void OnClose(object sender, CancelEventArgs e)
+        {
+            _stopping = true;
         }
     }
 }

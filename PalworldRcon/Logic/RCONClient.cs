@@ -5,19 +5,17 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Windows.Threading;
+using CoreRCON;
+using CoreRCON.PacketFormats;
 using MahApps.Metro.Controls.Dialogs;
 using PalworldRcon.Logging;
-using PalworldRcon.Network;
-using PalworldRcon.Network.Framing;
-using PalworldRcon.Network.TCP;
+using PalworldRcon.Logic.Responses;
+using ToastNotifications.Messages;
 
-namespace PalworldRcon;
+namespace PalworldRcon.Logic;
 
-public class RCONClient : TcpClient, INotifyPropertyChanged
+public class RCONClient(Settings settings) : INotifyPropertyChanged
 {
-    public const int TimeoutSeconds = 20;
-
     public Action<bool> OnAuth;
 
     public string ServerVersion
@@ -50,260 +48,184 @@ public class RCONClient : TcpClient, INotifyPropertyChanged
         }
     }
 
+    public bool? IsConnectedAndAuthed => _client?.Authenticated;
+
+    public Action Disconnected;
+
     private string _serverVersion = "v0.0.0.0";
     private string _serverName = "PalWorld";
-    private int _playerCount = 0;
-    private Settings _settings;
-    private Regex _infoRegex = new Regex("\\[(?'version'.*)\\] (?'servername'.*)", RegexOptions.Compiled);
-    private Regex _playerRegex = new Regex("(?'playername'.*),(?'charid'(?!playeruid).*),(?'steamid'.*)", RegexOptions.Compiled);
-    private RconFramer _framer = new();
-    private TaskCompletionSource<RconPacket> _authTask;
-    private Queue<(TaskCompletionSource<RconPacket>, PacketType)> _rconCommandList = new();
+    private RCON _client;
+    private bool _clientDisposed;
+    private int _playerCount;
 
-    public RCONClient(Settings settings)
+    private void CreateRconClient(IPAddress address, ushort port)
     {
-        _settings = settings;
-        _framer.MessageReceived += FramerOnMessageReceived;
-        Disconnected += RconDisconnect;
-        Connected += OnConnected;
-        ConnectionFailed += OnConnectionFailed;
+        if (_client != null && _client.Connected) _client.Dispose();
+
+        _client = new RCON(address, port, settings.RCONPassword, sourceMultiPacketSupport: false, strictCommandPacketIdMatching: false, autoConnect: true);
+
+        _client.OnDisconnected += RconDisconnect;
+        _client.OnPacketReceived += OnPacketReceived;
+
+        Log.Debug("Created RCON client, ready to connect.");
     }
 
-    private void OnConnectionFailed(Exception obj)
+    private void OnPacketReceived(RCONPacket obj)
     {
-        Log.Error(obj);
+        if(settings.DebugMode)
+            Log.Debug($"Packet - Body: {obj.Body} | ID: {obj.Id} | Type: {obj.Type}");
+    }
+
+    private void OnConnectionFailed()
+    {
+        Log.Error("Unable to connect to the rcon server, check your address and port! You can check console for more info.");
 
         MainWindow.Instance.Dispatcher.Invoke(async () =>
         {
             await MainWindow.Instance.ShowMessageAsync("Connection Error", "Unable to connect to the rcon server, check your address and port! You can check console for more info.");
             MainWindow.Instance.ConnectBtn.Content = "Connect";
         });
+
+        Disconnected?.Invoke();
     }
 
-    private async void OnConnected(TcpClient obj)
+    public void Disconnect()
     {
-        var resp = await SendAsync(_settings.RCONPassword, PacketType.ClientAuth, PacketType.AuthRespExec);
+        if (_clientDisposed) return;
 
-        if (resp == null || !resp.IsSuccess)
+        _clientDisposed = true;
+
+        _client.Dispose();
+
+        _client = null;
+
+        RconDisconnect();
+
+        Log.Info("Disconnected from the rcon server.");
+    }
+
+    public async Task<bool> ConnectToRCON(bool testConn = false)
+    {
+        if (!IPAddress.TryParse(settings.ServerAddress, out var address)) return false;
+
+        if (_client is { Connected: true })
         {
-            //Auth failed, disconnect
-            Log.Info("Authentication failed! Check your rcon password!");
-            OnAuth?.Invoke(false);
+            //Disconnect client first
             Disconnect();
-            return;
         }
 
-        //Poll server info
-        await GetInfo();
+        _clientDisposed = false;
 
-        OnAuth?.Invoke(true);
-    }
-
-    public bool ConnectToRCON()
-    {
-        if (!IPAddress.TryParse(_settings.ServerAddress, out var address)) return false;
-        if (Status == ClientStatus.Connected) return true;
+        //Create new client after dispose and cleanup
+        CreateRconClient(address, settings.ServerPort);
 
         MainWindow.Instance.ConnectBtn.Content = "Connecting...";
 
-        ConnectAsync(_settings.ServerAddress, _settings.ServerPort);
+        await _client.ConnectAsync();
 
-        return true;
+        if (!_client.Connected)
+        {
+            //Failed to connect
+            if(!testConn)
+                OnConnectionFailed();
+            return false;
+        }
+
+        var success = await _client.AuthenticateAsync();
+
+        if (testConn)
+        {
+            _client.Dispose();
+            _client = null;
+            return success;
+        }
+
+        if (success)
+        {
+            OnAuth?.Invoke(true);
+
+            //Poll server info
+            var info = await GetInfo();
+            ServerName = info.ServerName;
+            ServerVersion = info.ServerVersion;
+        }
+        else
+        {
+            OnAuth?.Invoke(false);
+        }
+
+        return success;
     }
 
-    public async void SendNotice(string notice)
+    public async Task<string> SendNotice(string notice)
     {
-        if(string.IsNullOrWhiteSpace(notice) || Status != ClientStatus.Connected) return;
+        if(string.IsNullOrWhiteSpace(notice) || !_client.Authenticated) return null;
 
-        await SendAsync($"Broadcast {notice}");
+        return await _client.SendCommandAsync($"Broadcast {notice}");
     }
 
-    public async void DoQuit(string shutdownMessage)
+    public async Task<string> DoQuit(string shutdownMessage)
     {
-        if (Status != ClientStatus.Connected) return;
+        if (!_client.Authenticated) return null;
 
-        await SendAsync($"Shutdown 30 {shutdownMessage}");
+        return await _client.SendCommandAsync($"Shutdown 30 {shutdownMessage}");
     }
 
     public async Task<string> Save()
     {
-        if (Status != ClientStatus.Connected) return null;
+        if (!_client.Authenticated) return null;
 
-        var resp = await SendAsync("Save");
-
-        return resp.Body;
+        return await _client.SendCommandAsync("Save");
     }
 
-    public async Task<Player[]> GetPlayers()
+    public async Task<PlayerList> GetPlayers()
     {
-        try
-        {
-            var result = await SendAsync("ShowPlayers");
-            var matches = _playerRegex.Matches(result.Body);
+        if(!_client.Authenticated) return null;
 
-            var players = new Player[matches.Count];
+        var players = await _client.SendCommandAsync<PlayerList>("ShowPlayers");
+        PlayerCount = players.Players.Count;
 
-            for(int i=0; i<matches.Count; i++)
-            {
-                Match match = matches[i];
-                players[i] = new Player(match.Groups["playername"].Value, match.Groups["charid"].Value, match.Groups["steamid"].Value);
-            }
-
-            PlayerCount = players.Length;
-
-            return players;
-        }
-        catch (Exception e)
-        {
-            Log.Error(e);
-        }
-
-        return null;
+        return players;
     }
 
-    public async Task<RconPacket> SendRawCommand(string command)
+    public async Task<string> SendRawCommand(string command)
     {
         if (string.IsNullOrWhiteSpace(command)) return null;
 
-        return await SendAsync(command);
+        return await _client.SendCommandAsync(command);
     }
 
-    public async Task<RconPacket> KickPlayer(string steamid)
+    public async Task<string> KickPlayer(string steamid)
     {
         if (string.IsNullOrWhiteSpace(steamid)) return null;
 
-        return await SendAsync($"KickPlayer {steamid}");
+        return await _client.SendCommandAsync($"KickPlayer {steamid}");
     }
 
-    public async Task<RconPacket> BanPlayer(string steamid)
+    public async Task<string> BanPlayer(string steamid)
     {
         if (string.IsNullOrWhiteSpace(steamid)) return null;
 
-        return await SendAsync($"BanPlayer {steamid}");
+        return await _client.SendCommandAsync($"BanPlayer {steamid}");
     }
 
-    public async Task<string> GetInfo()
+    public async Task<ServerInfo> GetInfo()
     {
-        try
-        {
-            var resp = await SendAsync("info");
-            var match = _infoRegex.Match(resp.Body);
-
-            if (match.Success)
-            {
-                ServerName = match.Groups["servername"].Value;
-                ServerVersion = match.Groups["version"].Value;
-            }
-
-            return resp.Body;
-        }
-        catch (Exception e)
-        {
-            return e.ToString();
-        }
+        if(!_client.Authenticated) return null;
+        return await _client.SendCommandAsync<ServerInfo>("info");
     }
 
-    private void RconDisconnect(TcpClient tcpClient, ConnectionCloseType connectionCloseType)
+    private void RconDisconnect()
     {
         ServerName = "Disconnected";
         ServerVersion = "v0.0.0.0";
 
-        if (connectionCloseType != ConnectionCloseType.Closed)
+        MainWindow.Instance.Dispatcher.Invoke(() =>
         {
-            MainWindow.Instance.Dispatcher.Invoke(() =>
-            {
-                MainWindow.Instance.ShowMessageAsync("Connection lost!", $"You unexpectedly lost connection to the rcon server! ({connectionCloseType})");
-            });
-        }
-    }
+            MainWindow.Instance.Notifier.ShowError("Disconnected from Palworld server!");
+        });
 
-    protected override void ReceiveData(byte[] buffer, int length)
-    {
-        //Pass into framer to handle size and null terminators
-        _framer.ReceiveData(buffer, length);
-    }
-
-    private void FramerOnMessageReceived(byte[] obj)
-    {
-        //We have data!
-        var packet = new RconPacket(obj);
-
-        var lastInQueue = _rconCommandList.Dequeue();
-
-        if (lastInQueue.Item2 != packet.Type)
-        {
-            Log.Error("We received an unknown packet! No matching exec was sent!");
-            Log.Error($"{packet.Type} with body {packet.Body} ");
-            return;
-        }
-
-        if (packet.Type == PacketType.AuthRespExec && packet.ID == -1 && !_authTask.Task.IsCompleted)
-        {
-            //Auth failed!
-            _authTask.SetResult(packet);
-            Log.Error("Auth failed!");
-            return;
-        }
-
-        switch (packet.Type)
-        {
-            case PacketType.Response:
-                //This is a response to a message
-                lastInQueue.Item1.SetResult(packet);
-                break;
-            case PacketType.AuthRespExec:
-                //Auth response!
-                packet.IsSuccess = true;
-                lastInQueue.Item1.SetResult(packet);
-                break;
-            default:
-                //We got something unexpected?! Log to console.
-                Log.Error(packet);
-                break;
-        }
-    }
-
-    private async Task<RconPacket> SendAsync(string body, PacketType type = PacketType.AuthRespExec, PacketType expectedType = PacketType.Response)
-    {
-        if (Status != ClientStatus.Connected)
-        {
-            Log.Error("You're not connected to an rcon server!");
-            return new RconPacket(0, PacketType.Response, "Not connected!");
-        }
-
-        var packet = new RconPacket(0, type, body);
-
-        try
-        {
-            Send(_framer.Frame(packet.GetBytes()));
-        }
-        catch (Exception e)
-        {
-            Log.Error("SendAsync encountered an unknown exception! Packet {packet.Type} with data {packet.Body} failed to send!");
-            Log.Error(e);
-        }
-
-        var respTask = new TaskCompletionSource<RconPacket>();
-
-        if (type == PacketType.ClientAuth)
-        {
-            //Auth is always the first command, let's reset the command dict
-            _rconCommandList.Clear();
-            _authTask = respTask;
-        }
-
-        _rconCommandList.Enqueue((respTask, expectedType));
-
-        try
-        {
-            return await respTask.Task.WaitAsync(TimeSpan.FromSeconds(TimeoutSeconds));
-        }
-        catch (TimeoutException)
-        {
-            Log.Error($"SendAsync has timed out! Packet {packet.Type} with data {packet.Body} did not get a response from the server!");
-        }
-
-        return new RconPacket(0, PacketType.Response, "Failure in SendAsync!");
+        Disconnected?.Invoke();
     }
 
     public event PropertyChangedEventHandler PropertyChanged;

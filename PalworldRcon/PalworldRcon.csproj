@@ -6,16 +6,20 @@
         <Nullable>disable</Nullable>
         <UseWPF>true</UseWPF>
         <Authors>DDAkebono</Authors>
-        <Copyright>DDAkebono 2024</Copyright>
+        <Copyright>DDAkebono 2025</Copyright>
         <Company>BTK-Development</Company>
-        <AssemblyVersion>1.1.1.0</AssemblyVersion>
-        <FileVersion>1.1.1.0</FileVersion>
+        <AssemblyVersion>1.2.0.0</AssemblyVersion>
+        <FileVersion>1.2.0.0</FileVersion>
         <ApplicationIcon>icon.ico</ApplicationIcon>
         <LangVersion>default</LangVersion>
+        <Version>1.2.0</Version>
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="CoreRCON" Version="5.4.2" />
       <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+      <PackageReference Include="ToastNotifications.Messages.Net5" Version="3.0.1" />
+      <PackageReference Include="ToastNotifications.Net5" Version="3.0.0" />
 
     </ItemGroup>
 

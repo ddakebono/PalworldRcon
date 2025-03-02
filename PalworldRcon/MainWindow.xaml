@@ -11,7 +11,8 @@
                  GlowBrush="{DynamicResource MahApps.Brushes.Accent}"
                  Title="Palworld RCON" Height="600" Width="1000"
                  x:Name="MyWindow"
-                 DataContext="{Binding RelativeSource={RelativeSource Self}}">
+                 DataContext="{Binding RelativeSource={RelativeSource Self}}"
+                 Closing="OnClose">
     <mah:MetroWindow.LeftWindowCommands>
         <mah:WindowCommands>
             <Button Click="LaunchGitHubSite" Content="Github"></Button>
@@ -56,6 +57,8 @@
                         <TextBox x:Name="ServerPort" mah:TextBoxHelper.Watermark="Port" />
                         <Label Target="{Binding ElementName=RCONPassword}" Content="RCON Password"/>
                         <PasswordBox x:Name="RCONPassword" mah:TextBoxHelper.Watermark="Password" PasswordChar="*"/>
+                        <Label Target="{Binding ElementName=DebugMode}">Debug - Print Packets To Log</Label>
+                        <CheckBox x:Name="DebugMode"></CheckBox>
                         <Button Content="Test Connection" Click="TryConnection" Margin="0,10,0,0" Style="{DynamicResource MahApps.Styles.Button.Square}"/>
                     </StackPanel>
                     <Button Grid.Row="1" Click="SaveSettings" Content="Save Changes" Style="{StaticResource MahApps.Styles.Button.Square.Accent}"/>
@@ -81,7 +84,7 @@
         <StackPanel>
             <TextBlock HorizontalAlignment="Center" x:Name="ServerBlock" FontSize="18">
                 <TextBlock.Text>
-                    <MultiBinding StringFormat="Server Name: {0} - Version: {1} - Players: {2}">
+                    <MultiBinding StringFormat="Name: {0} - Ver: {1} - Players: {2}">
                         <Binding Path="ServerName"></Binding>
                         <Binding Path="ServerVersion"></Binding>
                         <Binding Path="PlayerCount"></Binding>
